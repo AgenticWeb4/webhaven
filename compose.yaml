@@ -1,18 +1,18 @@
 name: webhaven
 services:
-  producer:
+  publisher:
     build:
       context: .
-      target: producer
-    command: [node, apps/producer/src/main.js]
+      target: publisher
+    command: [node, apps/publisher/src/main.js]
     init: true
     environment:
-      PRODUCER_HOST: 0.0.0.0
-      PRODUCER_PORT: 8081
-      PRODUCER_DATA_DIR: /data
+      PUBLISHER_HOST: 0.0.0.0
+      PUBLISHER_PORT: 8081
+      PUBLISHER_DATA_DIR: /data
       DELIVERY_DRIVER: local
       DELIVERY_DIR: /delivery
-      PRODUCER_TOKENS: ${PRODUCER_TOKENS:?Set PRODUCER_TOKENS in .env}
+      PUBLISHER_TOKENS: ${PUBLISHER_TOKENS:-${PRODUCER_TOKENS:?Set PUBLISHER_TOKENS in .env}}
       ALLOW_PRIVATE_NETWORK: ${ALLOW_PRIVATE_NETWORK:-false}
       SOURCE_S3_ENDPOINT: ${SOURCE_S3_ENDPOINT:-}
       SOURCE_S3_BUCKET: ${SOURCE_S3_BUCKET:-}
@@ -23,15 +23,15 @@ services:
     ports: ['127.0.0.1:8081:8081']
     volumes: [producer:/data, delivery:/delivery]
     restart: unless-stopped
-  consumer:
+  mirror:
     build:
       context: .
-      target: consumer
-    command: [node, apps/consumer/src/main.js]
+      target: mirror
+    command: [node, apps/mirror/src/main.js]
     init: true
     environment:
-      CONSUMER_HOST: 0.0.0.0
-      CONSUMER_DATA_DIR: /data
+      MIRROR_HOST: 0.0.0.0
+      MIRROR_DATA_DIR: /data
       DELIVERY_DRIVER: local
       DELIVERY_DIR: /delivery
       COLLECTIONS: ${COLLECTIONS:-docs}
@@ -40,6 +40,7 @@ services:
     ports: ['127.0.0.1:8080:8080']
     volumes: [consumer:/data, delivery:/delivery:ro]
     restart: unless-stopped
+# Keep existing volume identities so renaming services preserves v0.1.0 data.
 volumes:
   producer:
   delivery:

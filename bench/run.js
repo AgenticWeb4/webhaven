@@ -5,12 +5,12 @@ import { once } from 'node:events';
 import { performance, monitorEventLoopDelay } from 'node:perf_hooks';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { request, Agent } from 'node:http';
-import { Archive } from '../apps/producer/src/archive.js';
-import { Publisher } from '../apps/producer/src/publish.js';
-import { Replica } from '../apps/consumer/src/replica.js';
-import { consumerServer } from '../apps/consumer/src/http.js';
+import { VersionArchive } from '../apps/publisher/src/archive.js';
+import { ReleasePublisher } from '../apps/publisher/src/publish.js';
+import { LocalMirror } from '../apps/mirror/src/mirror.js';
+import { createMirrorServer } from '../apps/mirror/src/http.js';
 import { LocalStore } from '../packages/core/src/store.js';
-import { submitFiles } from '../apps/producer/src/capture.js';
+import { archiveFiles } from '../apps/publisher/src/capture.js';
 
 if (!isMainThread) {
   const agent = new Agent({ keepAlive: true, maxSockets: workerData.concurrency });
@@ -67,13 +67,13 @@ if (!isMainThread) {
 } else {
   const root = await mkdtemp(join(tmpdir(), 'webhaven-bench-'));
   const store = new LocalStore(join(root, 'delivery'));
-  const a = new Archive(join(root, 'producer'));
-  const p = new Publisher(a, store);
-  const r = new Replica(join(root, 'consumer'), new LocalStore(store.root, { readOnly: true }), {
+  const a = new VersionArchive(join(root, 'publisher'));
+  const p = new ReleasePublisher(a, store);
+  const r = new LocalMirror(join(root, 'mirror'), new LocalStore(store.root, { readOnly: true }), {
     minFreeBytes: 0,
   });
-  await r.load();
-  const server = consumerServer(r);
+  await r.restoreVerifiedVersions();
+  const server = createMirrorServer(r);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -86,7 +86,7 @@ if (!isMainThread) {
       logicalCpus: cpus().length,
       memoryBytes: totalmem(),
       date: new Date().toISOString(),
-      transport: 'local directory, Node consumer, loopback HTTP/1.1 keep-alive',
+      transport: 'local directory, Node mirror, loopback HTTP/1.1 keep-alive',
       repeats: Number(process.env.REPEATS || 3),
       durationSeconds: Number(process.env.DURATION || 3),
     },
@@ -104,14 +104,14 @@ if (!isMainThread) {
           type: 'application/octet-stream',
         }));
         const start = performance.now();
-        candidate = await submitFiles(a, 'bench', entries, { expectedRevision: revision });
+        candidate = await archiveFiles(a, 'bench', entries, { expectedRevision: revision });
         const archived = performance.now();
-        await p.publish('bench', candidate.manifest.version, {
+        await p.publishVersion('bench', candidate.manifest.version, {
           expectedRevision: revision,
           operationId: `r${++revision}`,
         });
         const published = performance.now();
-        await r.sync('bench');
+        await r.syncCollection('bench');
         const synced = performance.now();
         results.download.push({
           size,
@@ -119,7 +119,7 @@ if (!isMainThread) {
           repeat,
           archiveMs: archived - start,
           publishMs: published - archived,
-          consumerSyncMs: synced - published,
+          mirrorSyncMs: synced - published,
           endToEndMs: synced - start,
           deliveryMiBs: (32 * size) / 1048576 / ((synced - archived) / 1000),
         });

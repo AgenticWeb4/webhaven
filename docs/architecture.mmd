@@ -1,0 +1,17 @@
+flowchart TB
+  subgraph Publisher["Publisher · apps/publisher"]
+    direction LR
+    capture["Capture or upload"] --> archive["Check and archive"] --> publish["Commit release"]
+  end
+  subgraph Mirror["Mirror · apps/mirror"]
+    direction LR
+    sync["Pull and verify"] --> versions["Local versions"] --> http["HTTP GET / HEAD"]
+  end
+  sources["URL · source S3 · program output"] --> Publisher
+  Publisher -->|Write a complete release| delivery["Delivery store · local directory or S3"]
+  delivery -->|Periodic read-only sync| Mirror
+  client["Browser or client"] -->|Read local content| Mirror
+
+  style Publisher fill:#eff6ff,stroke:#3b82f6,color:#0f172a
+  style Mirror fill:#ecfdf5,stroke:#10b981,color:#0f172a
+  style delivery fill:#fff7ed,stroke:#f97316,color:#0f172a

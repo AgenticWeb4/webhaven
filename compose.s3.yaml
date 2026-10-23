@@ -1,19 +1,19 @@
 services:
-  producer:
+  publisher:
     environment:
       DELIVERY_DRIVER: s3
       S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_PREFIX: ${S3_PREFIX:-webhaven}
       S3_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${PRODUCER_AWS_ACCESS_KEY_ID:?Set producer delivery credentials}
-      AWS_SECRET_ACCESS_KEY: ${PRODUCER_AWS_SECRET_ACCESS_KEY:?Set producer delivery credentials}
-  consumer:
+      AWS_ACCESS_KEY_ID: ${PUBLISHER_AWS_ACCESS_KEY_ID:-${PRODUCER_AWS_ACCESS_KEY_ID:?Set publisher delivery credentials}}
+      AWS_SECRET_ACCESS_KEY: ${PUBLISHER_AWS_SECRET_ACCESS_KEY:-${PRODUCER_AWS_SECRET_ACCESS_KEY:?Set publisher delivery credentials}}
+  mirror:
     environment:
       DELIVERY_DRIVER: s3
       S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_PREFIX: ${S3_PREFIX:-webhaven}
       S3_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${CONSUMER_AWS_ACCESS_KEY_ID:?Set consumer read-only credentials}
-      AWS_SECRET_ACCESS_KEY: ${CONSUMER_AWS_SECRET_ACCESS_KEY:?Set consumer read-only credentials}
+      AWS_ACCESS_KEY_ID: ${MIRROR_AWS_ACCESS_KEY_ID:-${CONSUMER_AWS_ACCESS_KEY_ID:?Set mirror read-only credentials}}
+      AWS_SECRET_ACCESS_KEY: ${MIRROR_AWS_SECRET_ACCESS_KEY:-${CONSUMER_AWS_SECRET_ACCESS_KEY:?Set mirror read-only credentials}}

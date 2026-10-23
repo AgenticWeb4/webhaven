@@ -6,14 +6,14 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
 import { S3Store } from '../packages/core/src/store.js';
-import { Archive } from '../apps/producer/src/archive.js';
-import { Publisher } from '../apps/producer/src/publish.js';
-import { fromS3 } from '../apps/producer/src/capture.js';
-import { Replica } from '../apps/consumer/src/replica.js';
+import { VersionArchive } from '../apps/publisher/src/archive.js';
+import { ReleasePublisher } from '../apps/publisher/src/publish.js';
+import { captureS3Prefix } from '../apps/publisher/src/capture.js';
+import { LocalMirror } from '../apps/mirror/src/mirror.js';
 
 const endpoint = process.env.TEST_S3_ENDPOINT;
 test(
-  'S3-compatible service: source prefix, conditional commit, read-only replica and signed requests',
+  'S3-compatible service: source prefix, conditional commit, read-only mirror and signed requests',
   { skip: !endpoint },
   async (t) => {
     const credentials = {
@@ -34,8 +34,8 @@ test(
     await source.put('nested/readme.txt', Buffer.from('nested source object'));
     const local = await mkdtemp(join(tmpdir(), 'webhaven-s3-'));
     t.after(() => rm(local, { recursive: true, force: true }));
-    const archive = new Archive(join(local, 'producer'));
-    const c = await fromS3(archive, 'docs', {
+    const archive = new VersionArchive(join(local, 'publisher'));
+    const c = await captureS3Prefix(archive, 'docs', {
       bucket,
       prefix: 'source',
       endpoint,
@@ -44,8 +44,8 @@ test(
     });
     assert.equal(c.manifest.files.length, 2);
     const delivery = new S3Store({ bucket, endpoint, credentials, prefix: 'delivery' });
-    const pub = new Publisher(archive, delivery);
-    const release = await pub.publish('docs', c.manifest.version, {
+    const pub = new ReleasePublisher(archive, delivery);
+    const release = await pub.publishVersion('docs', c.manifest.version, {
       expectedRevision: 0,
       operationId: 'first',
     });
@@ -58,10 +58,10 @@ test(
       readOnly: true,
     });
     await assert.rejects(readOnly.put('invalid', Buffer.from('x')), /Read-only/);
-    const replica = new Replica(join(local, 'consumer'), readOnly, { minFreeBytes: 0 });
-    await replica.load();
-    await replica.sync('docs');
-    assert.equal(replica.heads.get('docs').version, c.manifest.version);
+    const mirror = new LocalMirror(join(local, 'mirror'), readOnly, { minFreeBytes: 0 });
+    await mirror.restoreVerifiedVersions();
+    await mirror.syncCollection('docs');
+    assert.equal(mirror.activeReleases.get('docs').version, c.manifest.version);
     await assert.rejects(
       delivery.put('heads/docs.json', Buffer.from('{}'), { expected: null }),
       (e) => e.status === 409,

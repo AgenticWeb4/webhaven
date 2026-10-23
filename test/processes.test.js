@@ -37,7 +37,12 @@ async function kill(child) {
   await once(child, 'exit');
 }
 
-test('separate producer and consumer: passive upload, auth, active web capture, offline restart and CLI', async (t) => {
+test('Publisher and Mirror: independent processes and offline access', (t) =>
+  verifyProcessLifecycle(t));
+test('Legacy environment names retain independent process behavior', (t) =>
+  verifyProcessLifecycle(t, true));
+
+async function verifyProcessLifecycle(t, useLegacyConfiguration = false) {
   const data = await mkdtemp(join(tmpdir(), 'webhaven-process-'));
   t.after(() => rm(data, { recursive: true, force: true }));
   const p = await port(),
@@ -51,18 +56,30 @@ test('separate producer and consumer: passive upload, auth, active web capture, 
     ...process.env,
     DELIVERY_DRIVER: 'local',
     DELIVERY_DIR: join(data, 'delivery'),
-    PRODUCER_DATA_DIR: join(data, 'producer'),
-    CONSUMER_DATA_DIR: join(data, 'consumer'),
-    PRODUCER_PORT: String(p),
-    CONSUMER_PORT: String(c),
+    PUBLISHER_DATA_DIR: join(data, 'publisher'),
+    MIRROR_DATA_DIR: join(data, 'mirror'),
+    PUBLISHER_PORT: String(p),
+    MIRROR_PORT: String(c),
     COLLECTIONS: 'docs',
     SYNC_INTERVAL_MS: '100',
     MIN_FREE_BYTES: '0',
     ALLOW_PRIVATE_NETWORK: 'true',
-    PRODUCER_TOKENS: JSON.stringify([
+    PUBLISHER_TOKENS: JSON.stringify([
       { token, collections: ['docs'], permissions: ['submit', 'publish'] },
     ]),
   };
+  if (useLegacyConfiguration) {
+    for (const [current, previous] of [
+      ['PUBLISHER', 'PRODUCER'],
+      ['MIRROR', 'CONSUMER'],
+    ]) {
+      for (const key of Object.keys(env)) {
+        if (!key.startsWith(current + '_')) continue;
+        env[key.replace(current, previous)] = env[key];
+        delete env[key];
+      }
+    }
+  }
   const start = (entry) => {
     const ch = spawn(process.execPath, [entry], {
       cwd: root,
@@ -73,8 +90,8 @@ test('separate producer and consumer: passive upload, auth, active web capture, 
     children.push(ch);
     return ch;
   };
-  const producer = start('apps/producer/src/main.js');
-  let consumer = start('apps/consumer/src/main.js');
+  const publisher = start('apps/publisher/src/main.js');
+  let mirrorProcess = start('apps/mirror/src/main.js');
   const base = `http://127.0.0.1:${p}`,
     mirror = `http://127.0.0.1:${c}`;
   await poll(async () => {
@@ -120,7 +137,7 @@ test('separate producer and consumer: passive upload, auth, active web capture, 
   const cli = spawn(
     process.execPath,
     [
-      'apps/producer/src/cli.js',
+      'apps/publisher/src/cli.js',
       'submit',
       '--collection',
       'docs',
@@ -130,7 +147,11 @@ test('separate producer and consumer: passive upload, auth, active web capture, 
     ],
     {
       cwd: root,
-      env: { ...env, PRODUCER_URL: base, WEBHAVEN_TOKEN: token },
+      env: {
+        ...env,
+        [useLegacyConfiguration ? 'PRODUCER_URL' : 'PUBLISHER_URL']: base,
+        WEBHAVEN_TOKEN: token,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   );
@@ -206,18 +227,18 @@ test('separate producer and consumer: passive upload, auth, active web capture, 
   assert.equal(artifact.manifest.files.length, 1);
   assert.equal(artifact.manifest.files[0].type, 'image/svg+xml');
   await new Promise((r) => source.close(r));
-  await kill(producer);
+  await kill(publisher);
   const refs = [...page.text.matchAll(/(?:src|href)="([^\"]+)"/g)].map(
     (m) => new URL(m[1], page.url).href,
   );
   assert.equal(refs.length, 3);
   for (const url of refs) assert.equal((await fetch(url)).status, 200, url);
-  await kill(consumer);
+  await kill(mirrorProcess);
   await rm(join(data, 'delivery'), { recursive: true, force: true });
-  consumer = start('apps/consumer/src/main.js');
+  mirrorProcess = start('apps/mirror/src/main.js');
   await poll(async () => {
     const r = await fetch(mirror + '/sites/docs/');
     return r.ok && (await r.text()).includes('active captured');
   });
-  assert.notEqual(producer.pid, consumer.pid);
-});
+  assert.notEqual(publisher.pid, mirrorProcess.pid);
+}

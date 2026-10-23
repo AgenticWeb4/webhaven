@@ -31,7 +31,7 @@ try:
     metrics={k:int(v) for k,v in __import__('re').findall(r'(\w+)=(\d+)',raw.split('METRICS ')[1])}
     assert not any(metrics[k] for k in ('status_errors','connect_errors','read_errors','write_errors','timeouts')),metrics
     row=dict(size=size,mode=mode,repeat=repeat,concurrency=32,rps=metrics['requests']*1e6/metrics['duration_us'],**metrics);rows.append(row);print(json.dumps(row),flush=True)
- (OUT/'comparison.json').write_text(json.dumps({'scope':'Nginx routing microbenchmark, identical bodies; not full Consumer performance','nginx':run('exec',NAME,'nginx','-V'),'image':run('image','inspect','nginx:stable','--format','{{.Id}}'),'client':run('image','inspect',CLIENT,'--format','{{.Id}}'),'rows':rows},indent=2))
+ (OUT/'comparison.json').write_text(json.dumps({'scope':'Nginx routing microbenchmark, identical bodies; not full Mirror performance','nginx':run('exec',NAME,'nginx','-V'),'image':run('image','inspect','nginx:stable','--format','{{.Id}}'),'client':run('image','inspect',CLIENT,'--format','{{.Id}}'),'rows':rows},indent=2))
 finally:
  if started:run('stop',NAME)
  if created:run('network','rm',NET)

@@ -1,0 +1,121 @@
+import { createServer } from 'node:http';
+import { createReadStream } from 'node:fs';
+import { join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { identifier, filePath, requireThat, respond } from '@webhaven/core';
+
+export function createMirrorServer(mirror) {
+  return createServer(async (request, response) => {
+    try {
+      if (request.url === '/healthz') return respond(response, 200, describeHealth(mirror));
+      requireThat(['GET', 'HEAD'].includes(request.method), 'Method not allowed', 405);
+      const target = parseContentRoute(request.url);
+      if (target.active) return redirectToActiveVersion(response, mirror, target);
+      await serveVerifiedFile(request, response, mirror, target);
+    } catch (error) {
+      if (!response.headersSent)
+        respond(response, error.status || 500, {
+          error: error.status ? error.message : 'Content unavailable',
+        });
+      else response.destroy();
+    }
+  });
+}
+
+function describeHealth(mirror) {
+  return {
+    status: Object.keys(mirror.errors).length ? 'degraded' : 'ok',
+    published: [...mirror.activeReleases.keys()],
+    errors: mirror.errors,
+  };
+}
+
+function parseContentRoute(requestUrl) {
+  // Decode the raw path before a URL parser can normalize away a traversal attempt.
+  const path = decodeURIComponent(requestUrl.split('?')[0]);
+  const active = path.match(/^\/sites\/([^/]+)(?:\/(.*))?$/);
+  if (active)
+    return {
+      active: true,
+      collection: identifier(active[1]),
+      path: filePath(active[2] || 'index.html'),
+    };
+  const pinned = path.match(/^\/versions\/([^/]+)\/([^/]+)\/(.+)$/);
+  requireThat(pinned, 'Not found', 404);
+  return {
+    active: false,
+    collection: identifier(pinned[1]),
+    version: identifier(pinned[2]),
+    path: filePath(pinned[3]),
+  };
+}
+
+function redirectToActiveVersion(response, mirror, target) {
+  const release = mirror.activeReleases.get(target.collection);
+  requireThat(release, 'No published version', 404);
+  const path = target.path.split('/').map(encodeURIComponent).join('/');
+  response.writeHead(307, {
+    location: `/versions/${target.collection}/${release.version}/${path}`,
+    'cache-control': 'no-store',
+  });
+  response.end();
+}
+
+async function serveVerifiedFile(request, response, mirror, target) {
+  const manifest = await mirror.readVerifiedManifest(target.collection, target.version);
+  const file = manifest?.files.find((file) => file.path === target.path);
+  requireThat(file, 'File not found', 404);
+  const plan = planFileResponse(request, file);
+  response.writeHead(plan.status, plan.headers);
+  if (!plan.sendBody) return response.end();
+  await pipeline(
+    createReadStream(
+      join(mirror.versionPath(target.collection, target.version), 'files', target.path),
+      { start: plan.start, end: plan.end },
+    ),
+    response,
+  );
+}
+
+function planFileResponse(request, file) {
+  const etag = `"${file.sha256}"`;
+  if (request.headers['if-none-match'] === etag)
+    return { status: 304, headers: { etag }, sendBody: false };
+  const headers = {
+    'content-type': file.type,
+    'content-length': file.bytes,
+    etag,
+    'accept-ranges': 'bytes',
+    'cache-control': 'public, max-age=31536000, immutable',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy':
+      "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  };
+  const rangeRequested =
+    request.headers.range && (!request.headers['if-range'] || request.headers['if-range'] === etag);
+  const range = rangeRequested
+    ? parseByteRange(request.headers.range, file.bytes)
+    : { start: 0, end: file.bytes - 1 };
+  if (!range)
+    return { status: 416, headers: { 'content-range': `bytes */${file.bytes}` }, sendBody: false };
+  if (rangeRequested) {
+    headers['content-range'] = `bytes ${range.start}-${range.end}/${file.bytes}`;
+    headers['content-length'] = range.end - range.start + 1;
+  }
+  return {
+    status: rangeRequested ? 206 : 200,
+    headers,
+    ...range,
+    sendBody: request.method !== 'HEAD' && file.bytes > 0,
+  };
+}
+
+function parseByteRange(header, size) {
+  const match = header.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match || (!match[1] && !match[2]) || size === 0) return null;
+  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+  const end = match[1] && match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size)
+    return null;
+  return { start, end };
+}

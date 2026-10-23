@@ -12,11 +12,13 @@
     "packages/*"
   ],
   "scripts": {
-    "producer": "node --env-file-if-exists=.env apps/producer/src/main.js",
-    "consumer": "node --env-file-if-exists=.env apps/consumer/src/main.js",
-    "cli": "node --env-file-if-exists=.env apps/producer/src/cli.js",
+    "publisher": "node --env-file-if-exists=.env apps/publisher/src/main.js",
+    "mirror": "node --env-file-if-exists=.env apps/mirror/src/main.js",
+    "cli": "node --env-file-if-exists=.env apps/publisher/src/cli.js",
     "test": "node --test test/*.test.js",
     "check": "node bench/check.js",
-    "bench": "node bench/run.js"
+    "bench": "node bench/run.js",
+    "producer": "npm run publisher",
+    "consumer": "npm run mirror"
   }
 }

@@ -61,8 +61,8 @@ where token has publish permission; candidate ready; nonempty reason
 then Publishing/select [version, expectedRevision, operationId, approval: reason]
 
 sync RefreshReplica
-when Timer/tick => [consumer]
-where consumer configured collections; each collection bound separately
+when Timer/tick => [mirror]
+where mirror configured collections; each collection bound separately
 then Replicating/sync [collection]
 
 sync ReadPublished

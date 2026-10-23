@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-23",
+  "environment": {
+    "node": "v26.7.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCpus": 10,
+    "memoryBytes": 25769803776,
+    "date": "2026-10-23T08:02:42.053Z",
+    "transport": "local directory, Node consumer, loopback HTTP/1.1 keep-alive",
+    "repeats": 3,
+    "durationSeconds": 3
+  },
+  "consumer": [
+    {
+      "bytes": 1024,
+      "concurrency": 32,
+      "medianRps": 13222.117526694055,
+      "medianP99Ms": 4.8136669999985315
+    },
+    {
+      "bytes": 65536,
+      "concurrency": 32,
+      "medianRps": 8841.758706546367,
+      "medianP99Ms": 10.38300000000163
+    },
+    {
+      "bytes": 1048576,
+      "concurrency": 32,
+      "medianRps": 1573.2486756778326,
+      "medianP99Ms": 44.66904199999408
+    }
+  ],
+  "consumerRequests": 506450,
+  "consumerErrors": 0,
+  "capture": [
+    {
+      "bytesPerFile": 1048576,
+      "files": 32,
+      "concurrency": 1,
+      "medianCapturePayloadMiBs": 72.97985501028339,
+      "medianEndToEndMs": 874.1350410000014
+    },
+    {
+      "bytesPerFile": 1048576,
+      "files": 32,
+      "concurrency": 8,
+      "medianCapturePayloadMiBs": 76.06576763220613,
+      "medianEndToEndMs": 831.064875
+    },
+    {
+      "bytesPerFile": 1048576,
+      "files": 32,
+      "concurrency": 32,
+      "medianCapturePayloadMiBs": 73.9627375543297,
+      "medianEndToEndMs": 839.3077090000006
+    }
+  ],
+  "routingMicrobenchmark": [
+    {
+      "bytes": 1024,
+      "mode": "native",
+      "medianRps": 118263.52714073543,
+      "medianP99Ms": 1.494
+    },
+    {
+      "bytes": 1024,
+      "mode": "quickjs",
+      "medianRps": 101391.83028650055,
+      "medianP99Ms": 2.063
+    },
+    {
+      "bytes": 65536,
+      "mode": "native",
+      "medianRps": 68893.28913590194,
+      "medianP99Ms": 2.374
+    },
+    {
+      "bytes": 65536,
+      "mode": "quickjs",
+      "medianRps": 64325.14245014245,
+      "medianP99Ms": 2.272
+    },
+    {
+      "bytes": 1048576,
+      "mode": "native",
+      "medianRps": 12646.21815624205,
+      "medianP99Ms": 3.977
+    },
+    {
+      "bytes": 1048576,
+      "mode": "quickjs",
+      "medianRps": 11370.008861378936,
+      "medianP99Ms": 13.453
+    }
+  ],
+  "limitations": [
+    "Shared development machine; not isolated production capacity",
+    "Node benchmark load worker and HTTP server share one OS process; CPU/RSS include both",
+    "Node access benchmark has no separate warmup; Nginx benchmark uses 1s warmup",
+    "S3 checked against local MinIO, not a public cloud provider",
+    "Nginx routing microbenchmark is not full Consumer throughput"
+  ]
+}

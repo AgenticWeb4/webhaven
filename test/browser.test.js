@@ -5,11 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { Archive } from '../apps/producer/src/archive.js';
-import { Publisher } from '../apps/producer/src/publish.js';
-import { fromWeb } from '../apps/producer/src/capture.js';
-import { Replica } from '../apps/consumer/src/replica.js';
-import { consumerServer } from '../apps/consumer/src/http.js';
+import { VersionArchive } from '../apps/publisher/src/archive.js';
+import { ReleasePublisher } from '../apps/publisher/src/publish.js';
+import { captureWebsite } from '../apps/publisher/src/capture.js';
+import { LocalMirror } from '../apps/mirror/src/mirror.js';
+import { createMirrorServer } from '../apps/mirror/src/http.js';
 import { LocalStore } from '../packages/core/src/store.js';
 
 test(
@@ -40,21 +40,24 @@ test(
     source.listen(0, '127.0.0.1');
     await once(source, 'listening');
     t.after(() => source.close());
-    const a = new Archive(join(data, 'producer'));
+    const a = new VersionArchive(join(data, 'publisher'));
     const store = new LocalStore(join(data, 'delivery'));
-    const p = new Publisher(a, store);
-    const r = new Replica(join(data, 'consumer'), store, { minFreeBytes: 0 });
-    await r.load();
-    const c = await fromWeb(a, 'docs', {
+    const p = new ReleasePublisher(a, store);
+    const r = new LocalMirror(join(data, 'mirror'), store, { minFreeBytes: 0 });
+    await r.restoreVerifiedVersions();
+    const c = await captureWebsite(a, 'docs', {
       url: `http://127.0.0.1:${source.address().port}/`,
       browser: true,
       expectedRevision: 0,
     });
     assert.equal(c.qualified, true, JSON.stringify(c.manifest.issues));
-    await p.publish('docs', c.manifest.version, { expectedRevision: 0, operationId: 'browser' });
-    await r.sync('docs');
+    await p.publishVersion('docs', c.manifest.version, {
+      expectedRevision: 0,
+      operationId: 'browser',
+    });
+    await r.syncCollection('docs');
     await new Promise((resolve) => source.close(resolve));
-    const server = consumerServer(r);
+    const server = createMirrorServer(r);
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     t.after(() => server.close());

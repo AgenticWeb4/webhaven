@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isPrivate, normalizeUrl, sameSite, siteId } from '../apps/producer/src/urls.js';
+import { isPrivate, normalizeUrl, sameSite, siteId } from '../apps/publisher/src/urls.js';
 
 test('canonical URLs retain query identity, drop fragments and reject credentials/schemes', () => {
   assert.equal(

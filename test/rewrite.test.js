@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rewriteCss, rewriteHtml, rewriteJs } from '../apps/producer/src/rewrite.js';
+import { rewriteCss, rewriteHtml, rewriteJs } from '../apps/publisher/src/rewrite.js';
 
 const mapped = (url) => `/local/${new URL(url).pathname.split('/').at(-1)}`;
 test('HTML resolves base URLs, CSS, srcset and strips integrity/CSP for transformed archives', () => {
