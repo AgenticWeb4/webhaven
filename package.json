@@ -1,0 +1,22 @@
+{
+  "name": "webhaven",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "producer": "node --env-file-if-exists=.env apps/producer/src/main.js",
+    "consumer": "node --env-file-if-exists=.env apps/consumer/src/main.js",
+    "cli": "node --env-file-if-exists=.env apps/producer/src/cli.js",
+    "test": "node --test test/*.test.js",
+    "check": "node bench/check.js",
+    "bench": "node bench/run.js"
+  }
+}

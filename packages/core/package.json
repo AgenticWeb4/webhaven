@@ -1,0 +1,14 @@
+{
+  "name": "@webhaven/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.js",
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1156.0"
+  }
+}

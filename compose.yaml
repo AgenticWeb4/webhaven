@@ -1,0 +1,46 @@
+name: webhaven
+services:
+  producer:
+    build:
+      context: .
+      target: producer
+    command: [node, apps/producer/src/main.js]
+    init: true
+    environment:
+      PRODUCER_HOST: 0.0.0.0
+      PRODUCER_PORT: 8081
+      PRODUCER_DATA_DIR: /data
+      DELIVERY_DRIVER: local
+      DELIVERY_DIR: /delivery
+      PRODUCER_TOKENS: ${PRODUCER_TOKENS:?Set PRODUCER_TOKENS in .env}
+      ALLOW_PRIVATE_NETWORK: ${ALLOW_PRIVATE_NETWORK:-false}
+      SOURCE_S3_ENDPOINT: ${SOURCE_S3_ENDPOINT:-}
+      SOURCE_S3_BUCKET: ${SOURCE_S3_BUCKET:-}
+      SOURCE_S3_PREFIX: ${SOURCE_S3_PREFIX:-}
+      SOURCE_S3_REGION: ${SOURCE_S3_REGION:-us-east-1}
+      SOURCE_S3_ACCESS_KEY_ID: ${SOURCE_S3_ACCESS_KEY_ID:-}
+      SOURCE_S3_SECRET_ACCESS_KEY: ${SOURCE_S3_SECRET_ACCESS_KEY:-}
+    ports: ['127.0.0.1:8081:8081']
+    volumes: [producer:/data, delivery:/delivery]
+    restart: unless-stopped
+  consumer:
+    build:
+      context: .
+      target: consumer
+    command: [node, apps/consumer/src/main.js]
+    init: true
+    environment:
+      CONSUMER_HOST: 0.0.0.0
+      CONSUMER_DATA_DIR: /data
+      DELIVERY_DRIVER: local
+      DELIVERY_DIR: /delivery
+      COLLECTIONS: ${COLLECTIONS:-docs}
+      SYNC_INTERVAL_MS: ${SYNC_INTERVAL_MS:-30000}
+      RETAIN_VERSIONS: ${RETAIN_VERSIONS:-3}
+    ports: ['127.0.0.1:8080:8080']
+    volumes: [consumer:/data, delivery:/delivery:ro]
+    restart: unless-stopped
+volumes:
+  producer:
+  delivery:
+  consumer:
