@@ -1,3 +1,6 @@
+/**
+ * 独立进程验收：通过真实 HTTP/CLI 提交和访问，覆盖重启、断源以及旧配置名称。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

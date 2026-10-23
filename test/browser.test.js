@@ -1,3 +1,6 @@
+/**
+ * 浏览器端到端验收：实际采集后停止源站，在拒绝外部请求的环境检查正文、脚本和样式。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';

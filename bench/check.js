@@ -1,3 +1,6 @@
+/**
+ * 语法检查入口：递归检查应用、共享包、测试和基准的 JavaScript，任一失败即退出。
+ */
 import { spawnSync } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
 async function walk(path) {

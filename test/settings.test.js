@@ -1,3 +1,6 @@
+/**
+ * 角色改名兼容验收：新变量优先、旧变量回退、既有默认数据目录继续可见。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';

@@ -1,3 +1,7 @@
+/**
+ * 隔离 S3 协议验收：来源前缀、签名读取、条件创建/更新冲突及镜像只读。
+ * 未配置测试端点时跳过；受限账号另行验证服务端拒绝写入，不能只检查本地 readOnly 标志。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';

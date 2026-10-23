@@ -1,4 +1,4 @@
-"""Matched-body Nginx native vs QuickJS routing microbenchmark. Requires Docker."""
+"""同响应体的 Nginx 原生与 QuickJS 路由微基准；需 Docker，不代表完整 Mirror 吞吐。"""
 import hashlib,json,os,pathlib,subprocess,urllib.request,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/'results'/'nginx';OUT.mkdir(parents=True,exist_ok=True)
@@ -6,6 +6,7 @@ DATA=ROOT/'var'/'nginx-bench';DATA.mkdir(parents=True,exist_ok=True)
 CLIENT=os.environ.get('BENCH_IMAGE','webhaven-bench')
 NAME='webhaven-nginx-benchmark';NET='webhaven-benchmark'
 def run(*args):return subprocess.check_output(['docker',*args],text=True,stderr=subprocess.STDOUT)
+# 意图：两条路径最终发送同一文件，只让 QuickJS 增加一次内部跳转。
 (DATA/'nginx.conf').write_text('''load_module /usr/lib/nginx/modules/ngx_http_js_module.so;
 worker_processes 4;
 events { worker_connections 8192; }
@@ -25,6 +26,7 @@ try:
   for mode in ('native','quickjs'):
    with urllib.request.urlopen(f'http://127.0.0.1:19080/{mode}/{size}.bin') as r:
     assert hashlib.sha256(r.read()).digest()==hashlib.sha256((DATA/f'{size}.bin').read_bytes()).digest()
+   # 先确认字节相同，再按每轮 1 秒预热、3 秒测量进行三次重复。
    for repeat in range(3):
     def wrk(duration):return run('run','--pull=never','--rm','--network',NET,'--cpus','2','--memory','256m','-v',f'{ROOT}/bench:/bench:ro','--entrypoint','wrk',CLIENT,'-t2','-c32',f'-d{duration}s','--latency','--timeout','2s','-s','/bench/latency.lua',f'http://{NAME}:8080/{mode}/{size}.bin')
     wrk(1);raw=wrk(3);(OUT/f'{size}-{mode}-{repeat}.txt').write_text(raw)
@@ -32,6 +34,7 @@ try:
     assert not any(metrics[k] for k in ('status_errors','connect_errors','read_errors','write_errors','timeouts')),metrics
     row=dict(size=size,mode=mode,repeat=repeat,concurrency=32,rps=metrics['requests']*1e6/metrics['duration_us'],**metrics);rows.append(row);print(json.dumps(row),flush=True)
  (OUT/'comparison.json').write_text(json.dumps({'scope':'Nginx routing microbenchmark, identical bodies; not full Mirror performance','nginx':run('exec',NAME,'nginx','-V'),'image':run('image','inspect','nginx:stable','--format','{{.Id}}'),'client':run('image','inspect',CLIENT,'--format','{{.Id}}'),'rows':rows},indent=2))
+# 无论测量成功与否，只清理由本脚本创建的容器和网络。
 finally:
  if started:run('stop',NAME)
  if created:run('network','rm',NET)

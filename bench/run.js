@@ -1,3 +1,7 @@
+/**
+ * 完整 Mirror 访问基准：准备隔离版本，再按体积、并发和轮次测量真实 HTTP 响应。
+ * 负载 Worker 与服务共用一个操作系统进程，CPU/RSS 包含两者；没有单独预热轮。
+ */
 import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir, cpus, totalmem, platform, arch } from 'node:os';
 import { join } from 'node:path';

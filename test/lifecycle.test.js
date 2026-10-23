@@ -1,3 +1,7 @@
+/**
+ * 版本生命周期验收：发布、回滚、故障保留、幂等重试、字节校验与离线恢复。
+ * 夹具使用隔离临时目录；断言公共结果与持久状态，不依赖私有步骤的拆分数量。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, readdir } from 'node:fs/promises';

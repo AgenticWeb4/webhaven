@@ -1,3 +1,6 @@
+/**
+ * 引用转换验收：HTML 基准路径、CSS 嵌套引用、srcset 与静态/动态模块导入。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rewriteCss, rewriteHtml, rewriteJs } from '../apps/publisher/src/rewrite.js';

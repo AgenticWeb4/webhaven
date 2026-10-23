@@ -1,3 +1,7 @@
+/**
+ * 命令行提交端：外部程序通过 Publisher HTTP 接口提交内容，不直接写归档或交付目录。
+ * 命令返回控制结果；采集命令返回排队任务，后续状态由任务查询接口读取。
+ */
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -25,6 +29,7 @@ const collectionUrl =
   '/v1/collections/' +
   encodeURIComponent(options.collection || '');
 
+/** 带集合令牌发送 JSON 或二进制请求；非成功响应保留服务端状态并转为命令失败。 */
 async function requestPublisher(path, method = 'GET', value) {
   const binary = Buffer.isBuffer(value);
   const response = await fetch(`${collectionUrl}/${path}`, {
@@ -41,12 +46,18 @@ async function requestPublisher(path, method = 'GET', value) {
   return result;
 }
 
+/** 用户指定修订时直接使用，否则读取当前值；真正提交仍可能因并发发布产生冲突。 */
 async function resolveExpectedRevision() {
   return options['expected-revision'] === undefined
     ? (await requestPublisher('head')).revision
     : Number(options['expected-revision']);
 }
 
+/**
+ * 意图：把外部程序产出的目录交给标准候选流程。
+ * 步骤：固定预计修订 → 生成清单 → 创建候选 → 上传对象 → 完成并按选项尝试发布。
+ * 目录若在清单生成后发生变化，服务端会以大小或摘要不匹配拒绝上传。
+ */
 async function submitDirectory() {
   requireThat(options.directory, '--directory is required');
   const expectedRevision = await resolveExpectedRevision();
@@ -65,6 +76,7 @@ async function submitDirectory() {
   });
 }
 
+/** 为每个文件声明相对路径、摘要、字节数与类型；上传时仍由服务端独立验证。 */
 async function describeDirectory(entries) {
   const files = [];
   for (const entry of entries) {
@@ -79,6 +91,7 @@ async function describeDirectory(entries) {
   return files;
 }
 
+/** 将文件上传到候选声明的摘要键，避免 CLI 直接控制持久对象路径。 */
 async function uploadCandidateFiles(version, files, entries) {
   for (let index = 0; index < files.length; index++)
     await requestPublisher(
@@ -88,6 +101,7 @@ async function uploadCandidateFiles(version, files, entries) {
     );
 }
 
+/** 提交 URL 或配置好的 S3 来源任务；返回排队结果，不等待采集完成。 */
 async function startCapture() {
   const expectedRevision = await resolveExpectedRevision();
   requireThat(options.url || options.s3, '--url or --s3 is required');
@@ -100,6 +114,7 @@ async function startCapture() {
   });
 }
 
+/** 显式发布或回滚必须提供预计修订；重试应复用 operation-id，避免产生新的操作身份。 */
 async function publishVersion() {
   requireThat(
     options['expected-revision'] !== undefined,

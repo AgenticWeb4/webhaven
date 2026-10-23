@@ -1,3 +1,8 @@
+/**
+ * Publisher 进程入口。
+ * 启动意图：选择配置 → 独占归档与本地交付目录 → 组合归档/发布/采集 → 恢复任务 → 监听控制请求。
+ * 本地交付仓需要额外进程锁；S3 通过服务端条件写入协调发布头。
+ */
 import { readFile } from 'node:fs/promises';
 import { lock } from '@webhaven/core';
 import { delivery, LocalStore } from '../../../packages/core/src/store.js';
@@ -33,6 +38,7 @@ server.listen(
   roleSetting('PUBLISHER', 'HOST', '127.0.0.1'),
 );
 
+/** 停止接收请求并在连接结束后释放目录锁；超时退出由下次启动恢复检查处理。 */
 async function stopPublisher() {
   server.close(async () => {
     await releaseDeliveryLock();

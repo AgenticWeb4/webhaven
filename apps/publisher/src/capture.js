@@ -1,3 +1,7 @@
+/**
+ * 统一采集入口：目录、来源 S3 和网址最终都转为可校验的文件清单。
+ * 网页采集范围是入口与可观察依赖，不是遍历整个网站或复现任意动态业务。
+ */
 import { readFile } from 'node:fs/promises';
 import { S3Store } from '../../../packages/core/src/store.js';
 import { digest, directoryFiles, mediaType, filePath, requireThat } from '@webhaven/core';
@@ -6,6 +10,11 @@ import { filename, transform } from './rewrite.js';
 import { download } from './download.js';
 import { captureRenderedPage } from './browser.js';
 
+/**
+ * 意图：让各种来源共享同一套归档规则。
+ * 步骤：从 entries[{path, body, type}] 声明摘要清单 → 创建候选 → 写入对象 → 完成校验。
+ * options 包含预计修订、完整声明和基础文件；返回候选，不直接切换公开版本。
+ */
 export async function archiveFiles(
   archive,
   collection,
@@ -36,6 +45,7 @@ export async function archiveFiles(
   return archive.finalizeVersion(collection, candidate.manifest.version);
 }
 
+/** 读取可信目录的普通文件后统一归档；目录遍历拒绝符号链接。 */
 export async function captureDirectory(archive, collection, directory, options) {
   const entries = [];
   for (const file of await directoryFiles(directory))
@@ -43,6 +53,10 @@ export async function captureDirectory(archive, collection, directory, options) 
   return archiveFiles(archive, collection, entries, { ...options, source: { kind: 'directory' } });
 }
 
+/**
+ * 只读列举来源前缀并逐对象读取，执行文件数、单文件和总量限制后归档。
+ * 返回候选；来源不是跨对象事务快照，读取时缺失对象会拒绝本次采集。
+ */
 export async function captureS3Prefix(archive, collection, options) {
   const source = new S3Store({
     bucket: options.bucket,
@@ -77,6 +91,11 @@ export async function captureS3Prefix(archive, collection, options) {
   });
 }
 
+/**
+ * 意图：把入口与观察到的资源整理成可独立访问的版本。
+ * 步骤：验证目标 → 可选浏览器采集 → 补齐静态依赖 → 改为本地引用 → 归档校验。
+ * 任一已知缺口都会阻止自动资格；成功下载入口本身不等于版本完整。
+ */
 export async function captureWebsite(archive, collection, options) {
   const url = await validateTarget(options.url);
   const capture = new WebsiteCapture(url, archive.limits, options);
@@ -92,6 +111,7 @@ export async function captureWebsite(archive, collection, options) {
   });
 }
 
+/** 一次网页采集的内部工作集；保存资源、重定向别名、去重队列和缺口。 */
 class WebsiteCapture {
   constructor(url, limits, options) {
     this.url = url;
@@ -114,6 +134,7 @@ class WebsiteCapture {
     this.totalBytes = 0;
   }
 
+  /** 替换同 URL 资源时只计算字节差额，最终 DOM 可覆盖首次响应而不重复记账。 */
   #recordResource(resource) {
     const previous = this.resources.get(resource.url);
     this.totalBytes += resource.body.length - (previous?.body.length || 0);
@@ -126,6 +147,7 @@ class WebsiteCapture {
     this.aliases.set(resource.finalUrl, resource.url);
   }
 
+  /** 把浏览器观察结果写入同一工作集，让后续依赖发现与静态抓取复用。 */
   captureRenderedEntry() {
     return captureRenderedPage({
       url: this.url,
@@ -137,6 +159,7 @@ class WebsiteCapture {
     });
   }
 
+  /** 按受限并发批次下载；每批发现的新资源进入后续批次，单资源失败转成缺口。 */
   async fetchObservedDependencies() {
     for (let cursor = 0; cursor < this.pendingUrls.length;) {
       const batch = this.pendingUrls.slice(cursor, cursor + this.concurrency);
@@ -146,6 +169,7 @@ class WebsiteCapture {
     }
   }
 
+  /** 已有浏览器资源直接复用；下载失败不丢弃其他资源，但必须留下缺口说明。 */
   async #downloadResource(url) {
     try {
       if (!this.resources.has(url))
@@ -155,8 +179,9 @@ class WebsiteCapture {
     }
   }
 
+  /** 只扩展资源依赖，跳过页面导航；URL 去重并限制规模，防止无界抓取。 */
   #discoverDependencies() {
-    // Browser-captured CSS and scripts can contain dependencies that the browser did not request.
+    // 浏览器已获取的 CSS 和脚本仍可能引用尚未实际请求的依赖，需要再次分析。
     for (const resource of this.resources.values()) {
       if (resource.discovered) continue;
       resource.discovered = true;
@@ -171,6 +196,11 @@ class WebsiteCapture {
     }
   }
 
+  /**
+   * 意图：使已获取文件之间使用同版本相对引用。
+   * 步骤：确认入口 → 重写资源引用 → 输出摘要文件名 → 为 HTML 入口追加 index.html。
+   * 缺失依赖指向本地 unavailable 并留下缺口；这里不伪造缺失资源。
+   */
   prepareLocalFiles() {
     const entry = this.resources.get(this.url);
     requireThat(entry, 'Entry resource not captured', 422);
@@ -190,6 +220,7 @@ class WebsiteCapture {
     return entries;
   }
 
+  /** 重定向前后 URL 可指向同一资源；未获取页面导航也改为本地失效地址。 */
   #resolveLocalReference(url, kind) {
     const target = this.resources.get(url) || this.resources.get(this.aliases.get(url));
     if (target) return './' + filename(target.url, target.type);

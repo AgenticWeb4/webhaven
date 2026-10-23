@@ -1,3 +1,6 @@
+/**
+ * 目标校验验收：规范 URL、受限网络地址及主机范围判断，不访问真实目标网站。
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isPrivate, normalizeUrl, sameSite, siteId } from '../apps/publisher/src/urls.js';

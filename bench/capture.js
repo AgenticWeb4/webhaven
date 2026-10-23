@@ -1,3 +1,7 @@
+/**
+ * 下载链路基准：受控本地源站提供入口和 32 个资源，分别计时采集归档、发布、镜像激活。
+ * 轮询等待不计入端到端时间；重复交付对象可复用，不代表公网下载性能。
+ */
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
@@ -43,7 +47,11 @@ try {
       for (let repeat = 0; repeat < 3; repeat++) {
         requests = 0;
         const start = performance.now();
-        const c = await captureWebsite(a, 'bench', { url, expectedRevision: revision, concurrency });
+        const c = await captureWebsite(a, 'bench', {
+          url,
+          expectedRevision: revision,
+          concurrency,
+        });
         const captured = performance.now();
         if (!c.qualified) throw Error(JSON.stringify(c.manifest.issues));
         await p.publishVersion('bench', c.manifest.version, {

@@ -1,8 +1,17 @@
+/**
+ * Publisher 控制接口：把 HTTP 请求映射到采集、候选归档与发布动作。
+ * 集合令牌控制 submit/publish 权限；这里不提供公开内容文件服务。
+ */
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { body, respond, identifier, requireThat } from '@webhaven/core';
 import { prepareVersionInput, publishIfQualified } from './captures.js';
 
+/**
+ * 创建控制服务，调用者负责 listen 与进程生命周期。
+ * 请求意图：识别集合路由 → 校验令牌及权限 → 执行动作 → 输出稳定状态或预期拒绝。
+ * tokens 必须预先配置；普通异常隐藏细节，已发送响应时通过断开连接结束失败。
+ */
 export function createPublisherServer(archive, releasePublisher, captureQueue, tokens) {
   validateTokenConfiguration(tokens);
   return createServer(async (request, response) => {
@@ -30,6 +39,7 @@ export function createPublisherServer(archive, releasePublisher, captureQueue, t
   });
 }
 
+/** 在接收请求前验证令牌长度和集合范围，避免带着无效认证配置启动。 */
 function validateTokenConfiguration(tokens) {
   requireThat(
     Array.isArray(tokens) && tokens.length > 0,
@@ -48,6 +58,7 @@ function validateTokenConfiguration(tokens) {
   }
 }
 
+/** 等长令牌用常量时间比较，再检查集合与动作权限；缺少认证为 401，越权为 403。 */
 function requirePermission(request, tokens, collection, permission) {
   const offered = Buffer.from((request.headers.authorization || '').replace(/^Bearer /, ''));
   const token = tokens.find((token) => {
@@ -62,6 +73,7 @@ function requirePermission(request, tokens, collection, permission) {
   );
 }
 
+/** 直接解析原始相对路径；集合名必须通过统一标识校验。 */
 function parseCollectionRoute(requestUrl) {
   const path = decodeURIComponent(requestUrl.split('?')[0]);
   const match = path.match(/^\/v1\/collections\/([^/]+)\/(.+)$/);
@@ -69,6 +81,7 @@ function parseCollectionRoute(requestUrl) {
   return { collection: identifier(match[1]), route: match[2] };
 }
 
+/** 将 head/candidates/captures/publish 映射为领域动作；返回 HTTP 状态与响应值。 */
 async function handleCollectionRequest(request, collection, route, services) {
   const { archive, releasePublisher, captureQueue } = services;
   if (request.method === 'GET' && route === 'head')
@@ -108,6 +121,7 @@ async function handleCollectionRequest(request, collection, route, services) {
   return { status: 404, value: { error: 'Not found' } };
 }
 
+/** 候选路由只允许读取、上传已声明对象和完成；部分内容的人工批准走 publish 路由。 */
 async function handleCandidateRequest(
   request,
   collection,
@@ -138,6 +152,7 @@ async function handleCandidateRequest(
   return { status: 404, value: { error: 'Not found' } };
 }
 
+/** 先执行请求体字节上限，再解析 JSON；语法错误由外层统一映射为 400。 */
 async function readJsonRequest(request, limit) {
   return JSON.parse(await body(request, limit));
 }
